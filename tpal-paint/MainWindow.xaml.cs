@@ -34,6 +34,7 @@ namespace tpal_paint
             ColorSelector.SelectedItem = typeof(Colors).GetProperties().First(x => x.Name == "Black");
             ToolSelector.ItemsSource = Enum.GetValues(typeof(ToolType)).Cast<ToolType>();
             ToolSelector.SelectedItem = ToolType.Pencil;
+            PaintSurface.Background = new SolidColorBrush(Colors.White);
             BrushSize = "2";
             BindingOperations.GetBindingExpression(BrushSizeTextBox, TextBox.TextProperty).UpdateTarget();
             _selectedColor = Colors.Black;
@@ -170,7 +171,7 @@ namespace tpal_paint
 
             DrawingVisual drawingVisual = new DrawingVisual();
             using (DrawingContext drawingContext = drawingVisual.RenderOpen())
-                drawingContext.DrawRectangle(new SolidColorBrush(Colors.White), null,
+                drawingContext.DrawRectangle(PaintSurface.Background, null,
                     new Rect(0, 0, PaintSurface.ActualWidth, PaintSurface.ActualHeight));
 
             rtb.Render(drawingVisual);

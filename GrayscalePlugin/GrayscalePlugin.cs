@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -7,11 +8,10 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using PluginInterface;
-using Color = System.Drawing.Color;
 
-namespace NegativePlugin
+namespace GrayscalePlugin
 {
-    public class NegativePlugin : IPlugin
+    public class GrayscalePlugin : IPlugin
     {
         private ToolBarTray _toolBarTray;
         private Canvas _canvas;
@@ -27,7 +27,7 @@ namespace NegativePlugin
 
         public void AddPluginControls()
         {
-            _toolBarTray.ToolBars.Add(GetPluginToolbar());   
+            _toolBarTray.ToolBars.Add(GetPluginToolbar());
         }
 
         private ToolBar GetPluginToolbar()
@@ -39,7 +39,7 @@ namespace NegativePlugin
 
         private Button GetNegativeButton()
         {
-            var button = new Button {Content = "Negative"};
+            var button = new Button { Content = "Greyscale" };
             button.Click += button_Click;
             return button;
         }
@@ -69,17 +69,36 @@ namespace NegativePlugin
                 canvasBitmap = new Bitmap(outStream);
             }
 
-            for (int x = 0; x < canvasBitmap.Width; x++)
-            {
-                for (int y = 0; y < canvasBitmap.Height; y++)
-                {
-                    Color pixelColor = canvasBitmap.GetPixel(x, y);
-                    Color newColor = Color.FromArgb(255 - pixelColor.R, 255 - pixelColor.G, 255 - pixelColor.B);
-                    canvasBitmap.SetPixel(x, y, newColor);
-                }
-            }
+            Bitmap newBitmap = new Bitmap(canvasBitmap.Width, canvasBitmap.Height);
 
-            _canvas.Background = new ImageBrush(Imaging.CreateBitmapSourceFromHBitmap(canvasBitmap.GetHbitmap(),
+            Graphics g = Graphics.FromImage(newBitmap);
+
+            //create the grayscale ColorMatrix
+            ColorMatrix colorMatrix = new ColorMatrix(
+                new float[][]
+                {
+                    new float[] {.3f, .3f, .3f, 0, 0},
+                    new float[] {.59f, .59f, .59f, 0, 0},
+                    new float[] {.11f, .11f, .11f, 0, 0},
+                    new float[] {0, 0, 0, 1, 0},
+                    new float[] {0, 0, 0, 0, 1}
+                });
+
+            //create some image attributes
+            ImageAttributes attributes = new ImageAttributes();
+
+            //set the color matrix attribute
+            attributes.SetColorMatrix(colorMatrix);
+
+            //draw the original image on the new image
+            //using the grayscale color matrix
+            g.DrawImage(canvasBitmap, new Rectangle(0, 0, canvasBitmap.Width, canvasBitmap.Height),
+                0, 0, canvasBitmap.Width, canvasBitmap.Height, GraphicsUnit.Pixel, attributes);
+
+            //dispose the Graphics object
+            g.Dispose();
+
+            _canvas.Background = new ImageBrush(Imaging.CreateBitmapSourceFromHBitmap(newBitmap.GetHbitmap(),
                     IntPtr.Zero, Int32Rect.Empty,
                     BitmapSizeOptions.FromEmptyOptions()));
             _canvas.Children.Clear();

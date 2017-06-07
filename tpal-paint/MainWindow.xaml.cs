@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
@@ -9,6 +10,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using Microsoft.Win32;
+using PluginInterface;
 
 namespace tpal_paint
 {
@@ -25,6 +28,10 @@ namespace tpal_paint
 
         private Ellipse _currentEllipse;
 
+        public bool CanUndo { get; set; }
+
+        public  bool CanRedo { get; set; }
+
         public string BrushSize { get; set; }
 
         public MainWindow()
@@ -38,6 +45,7 @@ namespace tpal_paint
             BrushSize = "2";
             BindingOperations.GetBindingExpression(BrushSizeTextBox, TextBox.TextProperty).UpdateTarget();
             _selectedColor = Colors.Black;
+            LoadPlugins();
         }
 
         private void PaintSurface_OnMouseDown(object sender, MouseButtonEventArgs e)
@@ -147,12 +155,21 @@ namespace tpal_paint
             switch ((ToolType)ToolSelector.SelectedItem)
             {
                 case ToolType.Pencil:
+                    SaveCanvasToFile("previous.jpg");
+                    CanUndo = true;
+                    BindingOperations.GetBindingExpression(Undo, MenuItem.IsEnabledProperty).UpdateTarget();
                     break;
                 case ToolType.Rectangle:
                     _currentRectangle = null;
+                    SaveCanvasToFile("previous.jpg");
+                    CanUndo = true;
+                    BindingOperations.GetBindingExpression(Undo, MenuItem.IsEnabledProperty).UpdateTarget();
                     break;
                 case ToolType.Ellipse:
                     _currentEllipse = null;
+                    SaveCanvasToFile("previous.jpg");
+                    CanUndo = true;
+                    BindingOperations.GetBindingExpression(Undo, MenuItem.IsEnabledProperty).UpdateTarget();
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
@@ -165,6 +182,74 @@ namespace tpal_paint
         }
 
         private void MenuItem_OnClick(object sender, RoutedEventArgs e)
+        {
+            SaveFileDialog saveDialog = new SaveFileDialog
+            {
+                FileName = "Image",
+                DefaultExt = ".jpg",
+                Filter = "Image documents (.jpg)|*.jpg"
+            };
+
+            bool? dialogResult = saveDialog.ShowDialog();
+            if (dialogResult.Value)
+            {
+                SaveCanvasToFile(saveDialog.FileName);
+            }
+        }
+
+        private void Open_OnClick(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog openDialog = new OpenFileDialog
+            {
+                DefaultExt = ".jpg",
+                Filter = "Image documents (.jpg)|*.jpg"
+            };
+
+            bool? openResult = openDialog.ShowDialog();
+
+            if (openResult.Value)
+            {
+                LoadCanvasFromFile(openDialog.FileName);
+            }
+        }
+
+        private void New_OnClick(object sender, RoutedEventArgs e)
+        {
+            PaintSurface.Background = new SolidColorBrush(Colors.White);
+            PaintSurface.Children.Clear();
+        }
+
+        private void Undo_OnClick(object sender, RoutedEventArgs e)
+        {
+            SaveCanvasToFile("next.jpg");
+            LoadCanvasFromFile("previous.jpg");
+            CanUndo = false;
+            CanRedo = true;
+            BindingOperations.GetBindingExpression(Undo, MenuItem.IsEnabledProperty).UpdateTarget();
+            BindingOperations.GetBindingExpression(Redo, MenuItem.IsEnabledProperty).UpdateTarget();
+        }
+
+        private void Redo_OnClick(object sender, RoutedEventArgs e)
+        {
+            SaveCanvasToFile("previous.jpg");
+            LoadCanvasFromFile("next.jpg");
+            CanUndo = true;
+            CanRedo = false;
+            BindingOperations.GetBindingExpression(Undo, MenuItem.IsEnabledProperty).UpdateTarget();
+            BindingOperations.GetBindingExpression(Redo, MenuItem.IsEnabledProperty).UpdateTarget();
+        }
+
+        private void LoadCanvasFromFile(string fileName)
+        {
+            ImageBrush brush = new ImageBrush
+            {
+                ImageSource = new BitmapImage(new Uri(fileName, UriKind.Relative))
+            };
+            PaintSurface.Background = brush;
+            PaintSurface.Children.Clear();
+        }
+
+        private void SaveCanvasToFile(string fileName)
         {
             RenderTargetBitmap rtb = new RenderTargetBitmap((int)PaintSurface.RenderSize.Width,
                 (int)PaintSurface.RenderSize.Height, 96d, 96d, PixelFormats.Default);
@@ -183,19 +268,29 @@ namespace tpal_paint
             BitmapEncoder pngEncoder = new JpegBitmapEncoder();
             pngEncoder.Frames.Add(BitmapFrame.Create(rtb));
 
-            using (var fs = System.IO.File.OpenWrite("logo.jpg"))
+            using (var fs = System.IO.File.OpenWrite(fileName))
             {
                 pngEncoder.Save(fs);
             }
         }
 
-        private void Open_OnClick(object sender, RoutedEventArgs e)
+        private void LoadPlugins()
         {
-            ImageBrush brush = new ImageBrush
+            DirectoryInfo d = new DirectoryInfo(@".\Plugins");
+            FileInfo[] Files = d.GetFiles("*.dll");
+            foreach (FileInfo file in Files)
             {
-                ImageSource = new BitmapImage(new Uri(@"logo.jpg", UriKind.Relative))
-            };
-            PaintSurface.Background = brush;
+                var instances = from t in Assembly.LoadFrom(file.FullName).GetTypes()
+                                where t.IsPublic && t.IsClass && t.GetInterfaces().Contains(typeof(IPlugin))
+                                select Activator.CreateInstance(t) as IPlugin;
+
+                foreach (var instance in instances)
+                {
+                    instance.SetToolbar(MainToolBar);
+                    instance.SetCanvas(PaintSurface);
+                    instance.AddPluginControls();
+                }
+            }
         }
     }
 }

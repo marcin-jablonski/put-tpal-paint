@@ -13,12 +13,12 @@
         <Menu Grid.Row="0">
             <MenuItem Header="File">
                 <MenuItem Header="Open" Name="Open" Click="Open_OnClick"></MenuItem>
-                <MenuItem Header="New"></MenuItem>
+                <MenuItem Header="New" Name="New" Click="New_OnClick"></MenuItem>
                 <MenuItem Header="Save" Click="MenuItem_OnClick"></MenuItem>
             </MenuItem>
             <MenuItem Header="Edit">
-                <MenuItem Header="Undo"></MenuItem>
-                <MenuItem Header="Redo"></MenuItem>
+                <MenuItem Header="Undo" Name="Undo" IsEnabled="{Binding ElementName=_this, Path=CanUndo, Mode=TwoWay}" Click="Undo_OnClick"></MenuItem>
+                <MenuItem Header="Redo" Name="Redo" IsEnabled="{Binding ElementName=_this, Path=CanRedo, Mode=TwoWay}" Click="Redo_OnClick"></MenuItem>
             </MenuItem>
         </Menu>
         <ToolBarTray Name="MainToolBar" Grid.Row="1" MinHeight="30">

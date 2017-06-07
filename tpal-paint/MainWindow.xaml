@@ -1,0 +1,61 @@
+﻿<Window x:Class="tpal_paint.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Name="_this"
+        Title="MainWindow" Height="350" Width="525">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"></RowDefinition>
+            <RowDefinition Height="Auto"></RowDefinition>
+            <RowDefinition Height="*"></RowDefinition>
+            <RowDefinition Height="Auto"></RowDefinition>
+        </Grid.RowDefinitions>
+        <Menu Grid.Row="0">
+            <MenuItem Header="File">
+                <MenuItem Header="Open" Name="Open" Click="Open_OnClick"></MenuItem>
+                <MenuItem Header="New"></MenuItem>
+                <MenuItem Header="Save" Click="MenuItem_OnClick"></MenuItem>
+            </MenuItem>
+            <MenuItem Header="Edit">
+                <MenuItem Header="Undo"></MenuItem>
+                <MenuItem Header="Redo"></MenuItem>
+            </MenuItem>
+        </Menu>
+        <ToolBarTray Name="MainToolBar" Grid.Row="1" MinHeight="30">
+            <ToolBar Height="{Binding ActualHeight, ElementName=MainToolBar}">
+                <StackPanel Orientation="Horizontal">
+                    <Label>Color: </Label>
+                    <ComboBox Name="ColorSelector" SelectionChanged="ColorSelector_OnSelectionChanged">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <Rectangle Fill="{Binding Name}" Width="16" Height="16" Margin="0,2,5,2" />
+                                    <TextBlock Text="{Binding Name}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Label>Tool</Label>
+                    <ComboBox Name="ToolSelector">
+                    </ComboBox>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Label>Brush size</Label>
+                    <TextBox MinWidth="20" Name="BrushSizeTextBox" PreviewTextInput="UIElement_OnPreviewTextInput" Text="{Binding ElementName=_this, Path=BrushSize, Mode=TwoWay}"></TextBox>
+                </StackPanel>
+            </ToolBar>
+        </ToolBarTray>
+        <StackPanel Name="CanvasContainer" Grid.Row="2" MinHeight="200" Orientation="Vertical">
+            <Canvas Name="PaintSurface" Width="{Binding ActualWidth, ElementName=CanvasContainer}" Height="{Binding ActualHeight, ElementName=CanvasContainer}" MouseDown="PaintSurface_OnMouseDown" MouseMove="PaintSurface_OnMouseMove" MouseUp="PaintSurface_OnMouseUp">
+                <Canvas.Background>
+                    <SolidColorBrush Color="White" Opacity="0"></SolidColorBrush>
+                </Canvas.Background>
+            </Canvas>
+        </StackPanel>
+        <StatusBar Grid.Row="3" MinHeight="20" MaxHeight="40">
+            <StatusBarItem></StatusBarItem>
+        </StatusBar>
+    </Grid>
+</Window>

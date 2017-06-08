@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -7,11 +9,15 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using Microsoft.Win32;
 using PluginInterface;
+using Color = System.Windows.Media.Color;
+using Point = System.Windows.Point;
+using Rectangle = System.Windows.Shapes.Rectangle;
 
 namespace tpal_paint
 {
@@ -27,6 +33,10 @@ namespace tpal_paint
         private Rectangle _currentRectangle;
 
         private Ellipse _currentEllipse;
+
+        private Bitmap _prevoiusBitmap;
+
+        private Bitmap _nextBitmap;
 
         public bool CanUndo { get; set; }
 
@@ -53,9 +63,15 @@ namespace tpal_paint
             switch ((ToolType)ToolSelector.SelectedItem)
             {
                 case ToolType.Pencil:
+                    _prevoiusBitmap = CreateCanvasBitmap();
+                    CanUndo = true;
+                    BindingOperations.GetBindingExpression(Undo, MenuItem.IsEnabledProperty).UpdateTarget();
                     _currentPoint = e.GetPosition((Canvas)sender);
                     break;
                 case ToolType.Rectangle:
+                    _prevoiusBitmap = CreateCanvasBitmap();
+                    CanUndo = true;
+                    BindingOperations.GetBindingExpression(Undo, MenuItem.IsEnabledProperty).UpdateTarget();
                     _currentPoint = e.GetPosition((Canvas)sender);
                     _currentRectangle = new Rectangle
                     {
@@ -67,6 +83,9 @@ namespace tpal_paint
                     PaintSurface.Children.Add(_currentRectangle);
                     break;
                 case ToolType.Ellipse:
+                    _prevoiusBitmap = CreateCanvasBitmap();
+                    CanUndo = true;
+                    BindingOperations.GetBindingExpression(Undo, MenuItem.IsEnabledProperty).UpdateTarget();
                     _currentPoint = e.GetPosition((Canvas)sender);
                     _currentEllipse = new Ellipse
                     {
@@ -155,21 +174,12 @@ namespace tpal_paint
             switch ((ToolType)ToolSelector.SelectedItem)
             {
                 case ToolType.Pencil:
-                    SaveCanvasToFile("previous.jpg");
-                    CanUndo = true;
-                    BindingOperations.GetBindingExpression(Undo, MenuItem.IsEnabledProperty).UpdateTarget();
                     break;
                 case ToolType.Rectangle:
                     _currentRectangle = null;
-                    SaveCanvasToFile("previous.jpg");
-                    CanUndo = true;
-                    BindingOperations.GetBindingExpression(Undo, MenuItem.IsEnabledProperty).UpdateTarget();
                     break;
                 case ToolType.Ellipse:
                     _currentEllipse = null;
-                    SaveCanvasToFile("previous.jpg");
-                    CanUndo = true;
-                    BindingOperations.GetBindingExpression(Undo, MenuItem.IsEnabledProperty).UpdateTarget();
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
@@ -221,8 +231,9 @@ namespace tpal_paint
 
         private void Undo_OnClick(object sender, RoutedEventArgs e)
         {
-            SaveCanvasToFile("next.jpg");
-            LoadCanvasFromFile("previous.jpg");
+            _nextBitmap = CreateCanvasBitmap();
+            PaintSurface.Background = GetBrushFromBitmap(_prevoiusBitmap);
+            PaintSurface.Children.Clear();
             CanUndo = false;
             CanRedo = true;
             BindingOperations.GetBindingExpression(Undo, MenuItem.IsEnabledProperty).UpdateTarget();
@@ -231,8 +242,9 @@ namespace tpal_paint
 
         private void Redo_OnClick(object sender, RoutedEventArgs e)
         {
-            SaveCanvasToFile("previous.jpg");
-            LoadCanvasFromFile("next.jpg");
+            _prevoiusBitmap = CreateCanvasBitmap();
+            PaintSurface.Background = GetBrushFromBitmap(_nextBitmap);
+            PaintSurface.Children.Clear();
             CanUndo = true;
             CanRedo = false;
             BindingOperations.GetBindingExpression(Undo, MenuItem.IsEnabledProperty).UpdateTarget();
@@ -251,19 +263,7 @@ namespace tpal_paint
 
         private void SaveCanvasToFile(string fileName)
         {
-            RenderTargetBitmap rtb = new RenderTargetBitmap((int)PaintSurface.RenderSize.Width,
-                (int)PaintSurface.RenderSize.Height, 96d, 96d, PixelFormats.Default);
-
-            DrawingVisual drawingVisual = new DrawingVisual();
-            using (DrawingContext drawingContext = drawingVisual.RenderOpen())
-                drawingContext.DrawRectangle(PaintSurface.Background, null,
-                    new Rect(0, 0, PaintSurface.ActualWidth, PaintSurface.ActualHeight));
-
-            rtb.Render(drawingVisual);
-            foreach (object paintSurfaceChild in PaintSurface.Children)
-            {
-                rtb.Render((Visual)paintSurfaceChild);
-            }
+            RenderTargetBitmap rtb = CreateWritableBitmapOfCanvas();
 
             BitmapEncoder pngEncoder = new JpegBitmapEncoder();
             pngEncoder.Frames.Add(BitmapFrame.Create(rtb));
@@ -286,11 +286,59 @@ namespace tpal_paint
 
                 foreach (var instance in instances)
                 {
-                    instance.SetToolbar(MainToolBar);
                     instance.SetCanvas(PaintSurface);
-                    instance.AddPluginControls();
+                    var toolbar = instance.GetPluginToolbar();
+                    MainToolBar.ToolBars.Add(toolbar);
                 }
             }
+        }
+
+        private void PluginButtonOnClick(object sender, RoutedEventArgs routedEventArgs)
+        {
+            _prevoiusBitmap = CreateCanvasBitmap();
+            CanUndo = true;
+            BindingOperations.GetBindingExpression(Undo, MenuItem.IsEnabledProperty).UpdateTarget();
+        }
+
+        private RenderTargetBitmap CreateWritableBitmapOfCanvas()
+        {
+            RenderTargetBitmap rtb = new RenderTargetBitmap((int)PaintSurface.RenderSize.Width,
+                (int)PaintSurface.RenderSize.Height, 96d, 96d, PixelFormats.Default);
+
+            DrawingVisual drawingVisual = new DrawingVisual();
+            using (DrawingContext drawingContext = drawingVisual.RenderOpen())
+                drawingContext.DrawRectangle(PaintSurface.Background, null,
+                    new Rect(0, 0, PaintSurface.ActualWidth, PaintSurface.ActualHeight));
+
+            rtb.Render(drawingVisual);
+            foreach (object paintSurfaceChild in PaintSurface.Children)
+            {
+                rtb.Render((Visual)paintSurfaceChild);
+            }
+            return rtb;
+        }
+
+        private Bitmap CreateCanvasBitmap()
+        {
+            var bmp = CreateWritableBitmapOfCanvas();
+
+            Bitmap canvasBitmap;
+            using (MemoryStream outStream = new MemoryStream())
+            {
+                BitmapEncoder enc = new BmpBitmapEncoder();
+                enc.Frames.Add(BitmapFrame.Create(bmp));
+                enc.Save(outStream);
+                canvasBitmap = new Bitmap(outStream);
+            }
+
+            return canvasBitmap;
+        }
+
+        private ImageBrush GetBrushFromBitmap(Bitmap bmp)
+        {
+            return new ImageBrush(Imaging.CreateBitmapSourceFromHBitmap(bmp.GetHbitmap(),
+                    IntPtr.Zero, Int32Rect.Empty,
+                    BitmapSizeOptions.FromEmptyOptions()));
         }
     }
 }

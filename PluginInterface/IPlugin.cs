@@ -1,11 +1,14 @@
-﻿using System.Windows.Controls;
+﻿using System;
+using System.Windows;
+using System.Windows.Controls;
 
 namespace PluginInterface
 {
+    public delegate void PluginUndo(object sender, RoutedEventArgs routedEventArgs);
+
     public interface IPlugin
     {
-        void SetToolbar(ToolBarTray toolBarTray);
         void SetCanvas(Canvas canvas);
-        void AddPluginControls();
+        ToolBar GetPluginToolbar();
     }
 }

@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -36,7 +37,34 @@ namespace GrayscalePlugin
 
         void button_Click(object sender, RoutedEventArgs e)
         {
-            Bitmap canvasBitmap = CreateCanvasBitmap();
+            Grayscale();
+        }
+
+        private void Grayscale()
+        {
+            RenderTargetBitmap rtb = new RenderTargetBitmap((int)_canvas.RenderSize.Width,
+                (int)_canvas.RenderSize.Height, 96d, 96d, PixelFormats.Default);
+
+            DrawingVisual drawingVisual = new DrawingVisual();
+
+            using (DrawingContext drawingContext = drawingVisual.RenderOpen())
+                drawingContext.DrawRectangle(_canvas.Background, null,
+                    new Rect(0, 0, _canvas.ActualWidth, _canvas.ActualHeight));
+
+            rtb.Render(drawingVisual);
+            foreach (object paintSurfaceChild in _canvas.Children)
+            {
+                rtb.Render((Visual)paintSurfaceChild);
+            }
+
+            Bitmap canvasBitmap;
+            using (MemoryStream outStream = new MemoryStream())
+            {
+                BitmapEncoder enc = new BmpBitmapEncoder();
+                enc.Frames.Add(BitmapFrame.Create(rtb));
+                enc.Save(outStream);
+                canvasBitmap = new Bitmap(outStream);
+            }
 
             Bitmap newBitmap = new Bitmap(canvasBitmap.Width, canvasBitmap.Height);
 
@@ -71,40 +99,6 @@ namespace GrayscalePlugin
                     IntPtr.Zero, Int32Rect.Empty,
                     BitmapSizeOptions.FromEmptyOptions()));
             _canvas.Children.Clear();
-        }
-
-        private Bitmap CreateCanvasBitmap()
-        {
-            var bmp = CreateWritableBitmapOfCanvas();
-
-            Bitmap canvasBitmap;
-            using (MemoryStream outStream = new MemoryStream())
-            {
-                BitmapEncoder enc = new BmpBitmapEncoder();
-                enc.Frames.Add(BitmapFrame.Create(bmp));
-                enc.Save(outStream);
-                canvasBitmap = new Bitmap(outStream);
-            }
-
-            return canvasBitmap;
-        }
-
-        private RenderTargetBitmap CreateWritableBitmapOfCanvas()
-        {
-            RenderTargetBitmap rtb = new RenderTargetBitmap((int)_canvas.RenderSize.Width,
-                (int)_canvas.RenderSize.Height, 96d, 96d, PixelFormats.Default);
-
-            DrawingVisual drawingVisual = new DrawingVisual();
-            using (DrawingContext drawingContext = drawingVisual.RenderOpen())
-                drawingContext.DrawRectangle(_canvas.Background, null,
-                    new Rect(0, 0, _canvas.ActualWidth, _canvas.ActualHeight));
-
-            rtb.Render(drawingVisual);
-            foreach (object paintSurfaceChild in _canvas.Children)
-            {
-                rtb.Render((Visual)paintSurfaceChild);
-            }
-            return rtb;
         }
     }
 }
